@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#1a0a10;--bg2:#220d15;--bg3:#2d1020;--bg4:#3a1428;
+  --pk1:#ff2d78;--pk2:#ff6ba8;--pk3:#ffb3d0;--pkd:#c4004e;
+  --green:#10b981;--amber:#f59e0b;--red:#ef4444;--blue:#60a5fa;
+  --text:#fce7f0;--text2:#f0afc8;--text3:#a06080;
+  --border:#3d1428;--border2:#5a1e3a;
+}
+body{font-family:'Be Vietnam Pro',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+.app{display:grid;grid-template-columns:390px 1fr;min-height:100vh}
+.sidebar{background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column}
+.map-panel{position:relative}
+#map{width:100%;height:100vh}
+
+/* Header */
+.header{padding:16px 20px;border-bottom:1px solid var(--border);background:var(--bg3)}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-icon{width:38px;height:38px;background:var(--pk1);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0}
+.logo-text{font-size:20px;font-weight:800;letter-spacing:-1px;color:var(--pk1)}
+.logo-text span{color:var(--pk3)}
+.tagline{font-size:10px;color:var(--text3);letter-spacing:.8px;text-transform:uppercase}
+.time-chip{margin-left:auto;background:var(--bg4);border:1px solid var(--border2);border-radius:20px;padding:4px 10px;font-size:11px;color:var(--text2);display:flex;align-items:center;gap:5px}
+.tdot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+.tdot.peak{background:var(--red);animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* Sections */
+.section{padding:12px 20px;border-bottom:1px solid var(--border)}
+.stitle{font-size:10px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px}
+.row{display:flex;align-items:center;gap:8px}
+.dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.dot.s{background:var(--pk1);box-shadow:0 0 8px var(--pk1)}
+.dot.e{background:#c084fc;box-shadow:0 0 8px #c084fc}
+.vline{width:1px;height:14px;background:var(--border2);margin-left:5px}
+.loc-input{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:13px;color:var(--text);font-family:inherit;outline:none;transition:border-color .2s}
+.loc-input:focus{border-color:var(--pk1)}
+.loc-input::placeholder{color:var(--text3)}
+.swap-btn{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;cursor:pointer;color:var(--text2);font-size:14px;transition:all .2s}
+.swap-btn:hover{border-color:var(--pk1);color:var(--pk1)}
+.chips{margin-top:8px;display:flex;gap:5px;flex-wrap:wrap}
+.chip{font-size:10px;padding:4px 8px;border-radius:6px;border:1px solid var(--border2);color:var(--text3);background:var(--bg3);cursor:pointer;transition:all .2s}
+.chip:hover{border-color:var(--pk1);color:var(--pk2);background:rgba(255,45,120,.08)}
+
+/* Vehicle */
+.vgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.vcard{background:var(--bg3);border:1.5px solid var(--border);border-radius:12px;padding:12px 10px;cursor:pointer;transition:all .2s;text-align:center;position:relative}
+.vcard.active{border-color:var(--pk1);box-shadow:0 0 16px rgba(255,45,120,.2);background:rgba(255,45,120,.05)}
+.vicon{font-size:26px;margin-bottom:4px}
+.vname{font-size:13px;font-weight:600}
+.vbase{font-size:10px;color:var(--text3);margin-top:1px}
+.vbadge{position:absolute;top:6px;right:6px;font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;text-transform:uppercase}
+.eco{background:rgba(16,185,129,.2);color:var(--green)}
+.vip{background:rgba(192,132,252,.2);color:#c084fc}
+
+/* Toggle */
+.trow{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.tlabel{font-size:12px;color:var(--text2)}
+.twrap{position:relative;width:36px;height:20px;flex-shrink:0}
+.twrap input{position:absolute;opacity:0;width:100%;height:100%;cursor:pointer;z-index:2;margin:0}
+.ttrack{position:absolute;inset:0;background:var(--bg4);border-radius:10px;transition:background .2s;border:1px solid var(--border2)}
+.twrap input:checked~.ttrack{background:var(--pk1);border-color:var(--pk1)}
+.tthumb{position:absolute;top:2px;left:2px;width:14px;height:14px;background:#fff;border-radius:50%;transition:transform .2s;pointer-events:none;z-index:1}
+.twrap input:checked~.tthumb{transform:translateX(16px)}
+
+.cselect{width:100%;background:var(--bg4);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--text2);font-family:inherit;outline:none;cursor:pointer;margin-bottom:8px}
+.cselect:focus{border-color:var(--pk1)}
+.cselect option{background:var(--bg3)}
+
+/* Badges */
+.dbadges{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.dbadge{font-size:10px;padding:3px 8px;border-radius:5px;font-weight:600}
+.dbadge.on{background:rgba(255,45,120,.2);color:var(--pk2);border:1px solid rgba(255,45,120,.4)}
+.dbadge.off{background:var(--bg4);color:var(--text3);border:1px solid var(--border)}
+.peak-banner{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--amber);display:flex;align-items:center;gap:6px;margin-top:8px}
+
+/* Sliders */
+.srow{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.shead{display:flex;justify-content:space-between}
+.slabel{font-size:12px;color:var(--text2)}
+.sval{font-size:12px;font-weight:700;color:var(--pk1)}
+input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:2px;outline:none;cursor:pointer}
+input[type=range].rain{background:linear-gradient(to right,var(--blue) 0%,var(--blue) var(--pct,30%),var(--bg4) var(--pct,30%))}
+input[type=range].traffic{background:linear-gradient(to right,var(--amber) 0%,var(--amber) var(--pct,50%),var(--bg4) var(--pct,50%))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;cursor:pointer;border:2px solid var(--bg2)}
+input[type=range].rain::-webkit-slider-thumb{background:var(--blue)}
+input[type=range].traffic::-webkit-slider-thumb{background:var(--amber)}
+
+/* Calc button */
+.calc-btn{margin:12px 20px;background:var(--pk1);border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;transition:all .2s;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px}
+.calc-btn:hover{background:var(--pkd)}
+.calc-btn:active{transform:scale(.98)}
+
+/* Result */
+.result-panel{padding:14px 20px;border-top:1px solid var(--border);display:none}
+.result-panel.show{display:block}
+.tabs{display:flex;gap:4px;background:var(--bg3);border-radius:8px;padding:3px;margin-bottom:12px}
+.tab{flex:1;padding:6px;border:none;background:none;border-radius:6px;font-size:11px;color:var(--text3);cursor:pointer;font-family:inherit;transition:all .2s}
+.tab.active{background:var(--pk1);color:#fff;font-weight:600}
+.fare-display{text-align:center;padding:12px 0 6px}
+.fare-lbl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.fare-amt{font-size:38px;font-weight:800;color:var(--pk1);line-height:1}
+.fare-orig{font-size:14px;color:var(--text3);text-decoration:line-through;margin-top:2px}
+.fare-cur{font-size:13px;color:var(--text2);margin-top:2px}
+.save-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 12px;border-radius:20px;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);color:var(--green);font-size:11px;font-weight:600;margin-top:6px}
+.breakdown{display:flex;flex-direction:column;margin-top:10px;background:var(--bg3);border-radius:10px;overflow:hidden}
+.br{display:flex;justify-content:space-between;font-size:12px;padding:7px 12px;border-bottom:1px solid var(--border)}
+.br:last-child{border-bottom:none}
+.br .bl{color:var(--text3)}
+.br .bv{color:var(--text2);font-weight:500}
+.br.tot .bl{color:var(--text);font-weight:700}
+.br.tot .bv{color:var(--pk1);font-weight:800}
+.br.dis .bv{color:var(--green)}
+.surge-row{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:6px}
+.sb{font-size:10px;padding:3px 8px;border-radius:5px;font-weight:600;border:1px solid}
+.sb.ok{background:rgba(16,185,129,.12);color:var(--green);border-color:rgba(16,185,129,.3)}
+.sb.warn{background:rgba(245,158,11,.12);color:var(--amber);border-color:rgba(245,158,11,.3)}
+.sb.hot{background:rgba(239,68,68,.12);color:var(--red);border-color:rgba(239,68,68,.3)}
+.sb.info{background:rgba(255,45,120,.12);color:var(--pk2);border-color:rgba(255,45,120,.3)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.stat{background:var(--bg3);border-radius:8px;padding:10px 12px;text-align:center}
+.stat-v{font-size:20px;font-weight:700}
+.stat-u{font-size:10px;color:var(--text3);text-transform:uppercase}
+.stat-l{font-size:11px;color:var(--text2);margin-top:2px}
+.algo-box{background:var(--bg3);border-radius:8px;padding:12px;font-size:12px;line-height:1.8;color:var(--text2)}
+.code-box{background:var(--bg);border-radius:6px;padding:7px 10px;font-family:monospace;font-size:11px;color:var(--pk2);margin-bottom:8px}
+.mbar-row{display:flex;align-items:center;gap:8px}
+.mbar-label{font-size:11px;color:var(--text3);width:90px;flex-shrink:0}
+.mbar-track{flex:1;height:5px;background:var(--bg);border-radius:3px;overflow:hidden}
+.mbar-fill{height:100%;border-radius:3px}
+.mbar-val{font-size:11px;font-weight:700;min-width:32px}
+
+/* Loading & Toast */
+.loading-overlay{position:absolute;inset:0;background:rgba(26,10,16,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1000;gap:12px}
+.loading-overlay.hidden{display:none}
+.spinner{width:36px;height:36px;border:3px solid var(--border2);border-top-color:var(--pk1);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:absolute;bottom:16px;left:50%;transform:translateX(-50%) translateY(80px);background:rgba(239,68,68,.15);border:1px solid var(--red);color:var(--red);padding:9px 16px;border-radius:8px;font-size:12px;z-index:9999;transition:transform .3s;white-space:nowrap}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.map-info-bar{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:500;background:rgba(34,13,21,.92);border:1px solid var(--border2);border-radius:20px;padding:7px 16px;font-size:12px;color:var(--text2);pointer-events:none;white-space:nowrap}
+.map-legend{position:absolute;bottom:20px;right:12px;z-index:500;background:rgba(34,13,21,.92);border:1px solid var(--border2);border-radius:10px;padding:10px 14px}
+.leg-item{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text2);margin-bottom:4px}
+.leg-item:last-child{margin-bottom:0}
+.leg-line{width:20px;height:3px;border-radius:2px}
+.info-box{background:var(--bg3);border-radius:8px;padding:12px;font-size:12px;line-height:1.7;color:var(--text2)}
+.info-sub{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.grad-bar{display:flex;align-items:center;gap:6px;margin-top:6px}
+.grad-fill{flex:1;height:5px;border-radius:3px;background:linear-gradient(to right,rgba(96,165,250,.4),rgba(16,185,129,.5),rgba(245,158,11,.7),rgba(239,68,68,.9))}
+.tech-row{margin-top:auto}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="sidebar">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon">🏍</div>
+      <div>
+        <div class="logo-text">HTC<span>riding</span></div>
+        <div class="tagline">Smart Fare · UEH Partner</div>
+      </div>
+      <div class="time-chip">
+        <div class="tdot" id="tdot"></div>
+        <span id="clock">--:--</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOCATION -->
+  <div class="section">
+    <div class="stitle">Lộ trình</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div class="row"><div class="dot s"></div><input class="loc-input" id="si" placeholder="Điểm đón — địa chỉ hoặc click bản đồ" autocomplete="off"/></div>
+      <div class="row" style="padding-left:2px"><div class="vline"></div><button class="swap-btn" onclick="swapLoc()">⇅</button></div>
+      <div class="row"><div class="dot e"></div><input class="loc-input" id="ei" placeholder="Điểm đến — địa chỉ hoặc click bản đồ" autocomplete="off"/></div>
+    </div>
+    <div class="chips">
+      <button class="chip" onclick="setPreset('hcm1')">Đức Bà → LM81</button>
+      <button class="chip" onclick="setPreset('uehA')">UEH-A → Bến Ninh</button>
+      <button class="chip" onclick="setPreset('uehB')">UEH-B → TDT</button>
+      <button class="chip" onclick="setPreset('dn1')">Đà Nẵng Bay</button>
+    </div>
+  </div>
+
+  <!-- VEHICLE -->
+  <div class="section">
+    <div class="stitle">Phương tiện</div>
+    <div class="vgrid">
+      <div class="vcard active" id="card-bike" onclick="selV('bike')">
+        <span class="vbadge eco">ECO</span>
+        <div class="vicon">🛵</div><div class="vname">Xe Máy</div><div class="vbase">10k + 12k/km</div>
+      </div>
+      <div class="vcard" id="card-car" onclick="selV('car')">
+        <span class="vbadge vip">VIP</span>
+        <div class="vicon">🚗</div><div class="vname">Xe Hơi</div><div class="vbase">20k + 18k/km</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- UEH VOUCHER -->
+  <div class="section">
+    <div class="stitle">Voucher UEH</div>
+    <div style="background:var(--bg3);border:1.5px solid var(--border2);border-radius:12px;padding:12px">
+      <div class="row" style="margin-bottom:10px">
+        <div style="width:28px;height:28px;background:var(--pk1);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;flex-shrink:0">U</div>
+        <div style="margin-left:8px"><div style="font-size:13px;font-weight:700">Kho Tri Thức UEH</div><div style="font-size:10px;color:var(--text3)">8 cơ sở · Ưu đãi sinh viên</div></div>
+      </div>
+      <div class="trow">
+        <span class="tlabel">Xuất phát từ cơ sở UEH (-15%)</span>
+        <div class="twrap"><input type="checkbox" id="ueh-tog" onchange="updVoucher()"><div class="ttrack"></div><div class="tthumb"></div></div>
+      </div>
+      <div id="campus-row" style="display:none">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Chọn cơ sở UEH</div>
+        <select class="cselect" id="campus-sel" onchange="setCampus()">
+          <option value="">-- Chọn cơ sở --</option>
+          <option value="A" data-lat="10.78318" data-lng="106.68944">Cơ sở A — 59C Nguyễn Đình Chiểu, Q3</option>
+          <option value="B" data-lat="10.77005" data-lng="106.66887">Cơ sở B — 279 Nguyễn Tri Phương, Q10</option>
+          <option value="C" data-lat="10.77300" data-lng="106.66603">Cơ sở C — 91 Đường 3 Tháng 2, Q10</option>
+          <option value="D" data-lat="10.78953" data-lng="106.69601">Cơ sở D — 196 Trần Quang Khải, Q1</option>
+          <option value="E" data-lat="10.78700" data-lng="106.69850">Cơ sở E — 54 Nguyễn Văn Thủ, Q1</option>
+          <option value="H" data-lat="10.79300" data-lng="106.67900">Cơ sở H — 1A Hoàng Diệu, Phú Nhuận</option>
+          <option value="N" data-lat="10.72001" data-lng="106.62100">Cơ sở N — Nguyễn Văn Linh, Bình Chánh</option>
+          <option value="VL" data-lat="10.25500" data-lng="105.97200">Phân hiệu Vĩnh Long</option>
+        </select>
+      </div>
+      <div class="trow">
+        <span class="tlabel">Sinh viên UEH (-10%)</span>
+        <div class="twrap"><input type="checkbox" id="sv-tog" onchange="updVoucher()"><div class="ttrack"></div><div class="tthumb"></div></div>
+      </div>
+      <div class="dbadges">
+        <span class="dbadge off" id="b-ueh">UEH -15%</span>
+        <span class="dbadge off" id="b-sv">SV -10%</span>
+        <span class="dbadge off" id="b-peak">Giờ cao điểm</span>
+      </div>
+      <div id="peak-banner" style="display:none" class="peak-banner">⚡ Giờ cao điểm! Thêm 2,000–3,000₫</div>
+    </div>
+  </div>
+
+  <!-- CONDITIONS -->
+  <div class="section">
+    <div class="stitle">Điều kiện thực tế</div>
+    <div class="srow">
+      <div class="shead"><span class="slabel">🌧️ Mưa</span><span class="sval" id="rv">3</span></div>
+      <input type="range" class="rain" id="rsl" min="0" max="10" value="3" step="1" oninput="updSlider(this,'r')">
+    </div>
+    <div class="srow" style="margin-bottom:0">
+      <div class="shead"><span class="slabel">🚦 Kẹt xe</span><span class="sval" id="tv">5</span></div>
+      <input type="range" class="traffic" id="tsl" min="0" max="10" value="5" step="1" oninput="updSlider(this,'t')">
+    </div>
+    <div id="cond-sum" style="margin-top:8px;font-size:11px;color:var(--text3)">Điều kiện bình thường</div>
+  </div>
+
+  <!-- CALC -->
+  <button class="calc-btn" onclick="calcFare()"><span style="font-size:16px">🧮</span><span>Tính Giá &amp; Xem Lộ Trình</span></button>
+
+  <!-- RESULT -->
+  <div class="result-panel" id="result">
+    <div class="tabs">
+      <button class="tab active" onclick="showTab('fare')">Giá Cước</button>
+      <button class="tab" onclick="showTab('route')">Lộ Trình</button>
+      <button class="tab" onclick="showTab('algo')">Chi Tiết</button>
+    </div>
+    <div id="tab-fare">
+      <div class="fare-display">
+        <div class="fare-lbl">Giá cước ước tính</div>
+        <div class="fare-amt" id="fare-amt">0</div>
+        <div class="fare-orig" id="fare-orig" style="display:none"></div>
+        <div class="fare-cur">VNĐ</div>
+        <div class="save-badge" id="save-badge" style="display:none"></div>
+      </div>
+      <div class="surge-row" id="surge-row"></div>
+      <div class="breakdown" id="breakdown"></div>
+    </div>
+    <div id="tab-route" style="display:none">
+      <div class="stats">
+        <div class="stat"><div class="stat-v" id="st-d">—</div><div class="stat-u">km (OSRM)</div><div class="stat-l">Quãng đường thực tế</div></div>
+        <div class="stat"><div class="stat-v" id="st-t">—</div><div class="stat-u">phút</div><div class="stat-l">Thời gian ước tính</div></div>
+      </div>
+      <div class="stats" style="margin-top:-4px">
+        <div class="stat"><div class="stat-v" id="st-hav">—</div><div class="stat-u">km (Haversine)</div><div class="stat-l">Đường chim bay</div></div>
+        <div class="stat"><div class="stat-v" id="st-ratio">—</div><div class="stat-u">hệ số</div><div class="stat-l">OSRM / Haversine</div></div>
+      </div>
+      <div class="info-box">
+        <div class="info-sub">Nguồn dữ liệu</div>
+        🗺️ OSRM — định tuyến thực tế (OpenStreetMap)<br>
+        📍 Nominatim — GeoPy-style geocoding/reverse geocoding<br>
+        📐 Haversine — tính khoảng cách thực tế (km)<br>
+        🔥 Heatmap — mật độ giao thông mô phỏng
+        <div class="grad-bar">
+          <span style="font-size:10px;color:var(--text3)">Thấp</span>
+          <div class="grad-fill"></div>
+          <span style="font-size:10px;color:var(--text3)">Cao</span>
+        </div>
+      </div>
+    </div>
+    <div id="tab-algo" style="display:none">
+      <div class="algo-box">
+        <div class="info-sub">Công thức Fuzzy Logic</div>
+        <div class="code-box">Fare = (Base + Dist + Time) × Surge(rain,traffic) × DistDiscount + Peak + Rain + UEH</div>
+        <div id="algo-detail" style="margin-bottom:10px"></div>
+        <div class="info-sub">Hệ số động</div>
+        <div id="mbars" style="display:flex;flex-direction:column;gap:5px;margin-top:6px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TECH -->
+  <div class="section tech-row">
+    <div class="stitle">Công nghệ</div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px">
+      <span class="chip" style="border-color:var(--pk1);color:var(--pk2)">OSRM Routing</span>
+      <span class="chip" style="border-color:var(--pk1);color:var(--pk2)">GeoPy Geocoding</span>
+      <span class="chip" style="border-color:var(--pk1);color:var(--pk2)">Haversine Distance</span>
+      <span class="chip" style="border-color:var(--pk1);color:var(--pk2)">Leaflet Maps</span>
+      <span class="chip" style="border-color:var(--pk1);color:var(--pk2)">Fuzzy Surge Logic</span>
+      <span class="chip" style="border-color:var(--pk1);color:var(--pk2)">Peak Hour Logic</span>
+      <span class="chip" style="border-color:var(--pk1);color:var(--pk2)">Student Voucher</span>
+    </div>
+  </div>
+</div>
+
+<!-- MAP -->
+<div class="map-panel">
+  <div id="loading" class="loading-overlay hidden">
+    <div class="spinner"></div>
+    <div style="font-size:13px;color:var(--text2)" id="load-txt">Đang xử lý...</div>
+  </div>
+  <div id="map"></div>
+  <div class="map-info-bar" id="map-info">Click bản đồ để đặt điểm đón / điểm đến</div>
+  <div class="map-legend">
+    <div class="leg-item"><div class="leg-line" style="background:var(--pk1)"></div>Xe Máy</div>
+    <div class="leg-item"><div class="leg-line" style="background:#c084fc"></div>Xe Hơi</div>
+    <div class="leg-item"><div class="leg-line" style="width:10px;height:10px;border-radius:50%;background:var(--pk1)"></div>Cơ sở UEH</div>
+  </div>
+  <div class="toast" id="toast"></div>
+</div>
+</div>
+
+<script>
+// ===================== STATE =====================
+const S = {
+  sc:null, ec:null, vehicle:'bike', rain:3, traffic:5,
+  ueh:false, campus:'', student:false,
+  dist:0, time:0, clickMode:'start'
+};
+
+// ===================== UEH CAMPUSES =====================
+const CAMPS = {
+  A:{lat:10.78318,lng:106.68944,name:'Cơ sở A',addr:'59C Nguyễn Đình Chiểu, Q3'},
+  B:{lat:10.77005,lng:106.66887,name:'Cơ sở B',addr:'279 Nguyễn Tri Phương, Q10'},
+  C:{lat:10.77300,lng:106.66603,name:'Cơ sở C',addr:'91 Đường 3/2, Q10'},
+  D:{lat:10.78953,lng:106.69601,name:'Cơ sở D',addr:'196 Trần Quang Khải, Q1'},
+  E:{lat:10.78700,lng:106.69850,name:'Cơ sở E',addr:'54 Nguyễn Văn Thủ, Q1'},
+  H:{lat:10.79300,lng:106.67900,name:'Cơ sở H',addr:'1A Hoàng Diệu, Phú Nhuận'},
+  N:{lat:10.72001,lng:106.62100,name:'Cơ sở N',addr:'Nguyễn Văn Linh, Bình Chánh'},
+  VL:{lat:10.25500,lng:105.97200,name:'Phân hiệu Vĩnh Long',addr:'1B Nguyễn Trung Trực, Vĩnh Long'}
+};
+
+// ===================== GEOPY-STYLE UTILITIES =====================
+// 1. Haversine distance between two coordinates (km) — like GeoPy.distance.distance()
+function haversine(lat1,lon1,lat2,lon2){
+  const R=6371, toRad=x=>x*Math.PI/180;
+  const dLat=toRad(lat2-lat1), dLon=toRad(lon2-lon1);
+  const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+// 2. Geocode address → coordinates — like GeoPy.geocoders.Nominatim.geocode()
+async function geocode(addr){
+  try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr)}&limit=1`,{headers:{'Accept-Language':'vi'}});
+    const d=await r.json();
+    if(d[0]) return [parseFloat(d[0].lat),parseFloat(d[0].lon)];
+  }catch(e){}
+  return null;
+}
+
+// 3. Reverse geocode coordinates → address — like GeoPy.geocoders.Nominatim.reverse()
+async function reverseGeocode(lat,lng,elId){
+  try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,{headers:{'Accept-Language':'vi'}});
+    const d=await r.json();
+    if(d.display_name){
+      const p=d.display_name.split(',');
+      $(elId).value=p.slice(0,3).join(',').trim();
+    }
+  }catch(e){}
+}
+
+// 4. Find nearest UEH campus — like GeoPy nearest location search
+function nearestCampus(lat,lng){
+  let best=null, bestD=Infinity;
+  for(const [k,c] of Object.entries(CAMPS)){
+    const d=haversine(lat,lng,c.lat,c.lng);
+    if(d<bestD){bestD=d;best={key:k,...c,dist:d};}
+  }
+  return best;
+}
+
+// 5. Multi-point delivery distance (sum of legs) — like GeoPy multi-stop
+function multiStopDist(coords){
+  let total=0;
+  for(let i=0;i<coords.length-1;i++) total+=haversine(...coords[i],...coords[i+1]);
+  return total;
+}
+
+// ===================== MAP SETUP =====================
+const map = L.map('map',{zoomControl:true}).setView([10.7769,106.7009],13);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+  attribution:'©OpenStreetMap ©CARTO',subdomains:'abcd',maxZoom:19
+}).addTo(map);
+
+let mk={s:null,e:null}, routeL=null, routeG=null, heatGrp=null, uehMks=[];
+
+const mkIcon=(col,glow)=>L.divIcon({className:'',
+  html:`<div style="width:14px;height:14px;background:${col};border-radius:50%;border:2.5px solid #fff;box-shadow:0 0 10px ${glow}"></div>`,
+  iconAnchor:[7,7]});
+const iS=mkIcon('#ff2d78','rgba(255,45,120,.8)');
+const iE=mkIcon('#c084fc','rgba(192,132,252,.8)');
+const iU=mkIcon('#ff2d78','rgba(255,45,120,.5)');
+
+// Draw UEH markers
+Object.entries(CAMPS).forEach(([k,c])=>{
+  const m=L.marker([c.lat,c.lng],{icon:iU})
+    .bindPopup(`<b style="color:#ff2d78">${c.name}</b><br>${c.addr}`)
+    .addTo(map);
+  uehMks.push(m);
+});
+
+map.on('click',async({latlng:{lat,lng}})=>{
+  if(S.clickMode==='start'){
+    S.sc=[lat,lng]; placeMk('s',[lat,lng]);
+    S.clickMode='end'; setInfo('Điểm đón đã đặt ✓  •  Click tiếp điểm đến');
+    reverseGeocode(lat,lng,'si');
+    // Show nearest campus info
+    const near=nearestCampus(lat,lng);
+    if(near.dist<2) showToast(`📍 Gần ${near.name} (${near.dist.toFixed(1)} km)`,'ok');
+  }else{
+    S.ec=[lat,lng]; placeMk('e',[lat,lng]);
+    S.clickMode='start'; setInfo('Hai điểm đã chọn  •  Nhấn "Tính Giá"');
+    reverseGeocode(lat,lng,'ei');
+    // Show straight-line distance hint
+    if(S.sc) setInfo(`Đường chim bay: ${haversine(...S.sc,...S.ec).toFixed(1)} km  •  Nhấn "Tính Giá"`);
+  }
+});
+
+function placeMk(t,coord){
+  if(mk[t]) map.removeLayer(mk[t]);
+  mk[t]=L.marker(coord,{icon:t==='s'?iS:iE}).addTo(map);
+}
+
+// ===================== OSRM ROUTING =====================
+function decodePoly(str){
+  let idx=0,lat=0,lng=0,c=[];
+  while(idx<str.length){
+    let b,sh=0,r=0;
+    do{b=str.charCodeAt(idx++)-63;r|=(b&0x1f)<<sh;sh+=5}while(b>=0x20);
+    lat+=(r&1)?~(r>>1):(r>>1); sh=0;r=0;
+    do{b=str.charCodeAt(idx++)-63;r|=(b&0x1f)<<sh;sh+=5}while(b>=0x20);
+    lng+=(r&1)?~(r>>1):(r>>1);
+    c.push([lat/1e5,lng/1e5]);
+  }
+  return c;
+}
+
+async function getRoute(lat1,lon1,lat2,lon2){
+  const r=await fetch(`https://router.project-osrm.org/route/v1/driving/${lon1},${lat1};${lon2},${lat2}?overview=full`);
+  const d=await r.json();
+  if(d.code==='Ok'){
+    const rt=d.routes[0];
+    return{dist:rt.distance/1000, time:rt.duration/60, geom:decodePoly(rt.geometry)};
+  }
+  return null;
+}
+
+// ===================== FUZZY LOGIC ENGINE =====================
+// Membership functions
+const mf={
+  low: x=>Math.max(0,Math.min(1,(5-x)/5)),
+  med: x=>Math.max(0,1-Math.abs(x-5)/5),
+  high:x=>Math.max(0,Math.min(1,(x-5)/5))
+};
+
+// Defuzzify: weighted centroid
+function defuzz(rules){ // rules = [{mu, z}, ...]
+  const num=rules.reduce((s,r)=>s+r.mu*r.z,0);
+  const den=rules.reduce((s,r)=>s+r.mu,0);
+  return den===0?0:num/den;
+}
+
+// Fuzzy surge multiplier from rain + traffic
+function fuzzySurge(rain,traffic){
+  return defuzz([
+    {mu:Math.min(mf.low(traffic),mf.low(rain)),   z:1.00},  // bình thường
+    {mu:Math.min(mf.high(traffic),mf.low(rain)),  z:1.20},  // kẹt xe
+    {mu:Math.min(mf.low(traffic),mf.high(rain)),  z:1.25},  // mưa
+    {mu:Math.min(mf.med(traffic),mf.med(rain)),   z:1.15},  // vừa vừa
+    {mu:Math.min(mf.high(traffic),mf.high(rain)), z:1.50},  // cực đoan
+  ]);
+}
+
+// Fuzzy rain surcharge (VND)
+function fuzzyRainFee(rain){
+  return Math.round(defuzz([
+    {mu:mf.low(rain), z:0},
+    {mu:mf.med(rain), z:2000},
+    {mu:mf.high(rain),z:5000}
+  ]));
+}
+
+// Fuzzy traffic multiplier for time cost
+function fuzzyTrafficMult(traffic){
+  return defuzz([
+    {mu:mf.low(traffic), z:1.0},
+    {mu:mf.med(traffic), z:1.2},
+    {mu:mf.high(traffic),z:1.5}
+  ]);
+}
+
+// ===================== PEAK HOUR =====================
+function isPeak(){
+  const t=new Date().getHours()*60+new Date().getMinutes();
+  return(t>=420&&t<=480)||(t>=1020&&t<=1080);
+}
+function peakFee(){ return isPeak()?(new Date().getHours()>=7&&new Date().getHours()<8)?2000:3000:0; }
+
+// ===================== FARE CALCULATION =====================
+function computeFare(dist,time,vehicle,rain,traffic,isUeh,isStudent){
+  const cfg = vehicle==='bike'
+    ?{base:10000,r1:12000,r2:10000,tRate:300}
+    :{base:20000,r1:18000,r2:15000,tRate:800};
+
+  const distCost = dist<=2 ? dist*cfg.r1 : 2*cfg.r1+(dist-2)*cfg.r2;
+  const timeCost = time*cfg.tRate*fuzzyTrafficMult(traffic);
+  const subtotal  = cfg.base+distCost+timeCost;
+
+  const surge      = fuzzySurge(rain,traffic);
+  const distDisc   = dist>1 ? Math.max(0.7,1-0.05*Math.sqrt(dist)) : 1.0;
+
+  let fare = subtotal*surge*distDisc;
+  const fareBeforeDisc = fare; // giá trước mọi discount
+  const uehDisc    = isUeh?Math.round(fare*0.15):0;
+  const peakFee_   = peakFee();
+  const rainFee    = fuzzyRainFee(rain);
+  fare += peakFee_+rainFee;
+  fare -= uehDisc;
+
+  const svDisc = isStudent?Math.round(fare*0.1):0;
+  fare = Math.round(fare-svDisc);
+  const fareB = Math.round(fareBeforeDisc+peakFee_+rainFee); // giá gốc chưa giảm
+
+  return{
+    fare, fareB:Math.round(fareB),
+    base:cfg.base, distCost:Math.round(distCost), timeCost:Math.round(timeCost),
+    subtotal:Math.round(subtotal),
+    surge:surge.toFixed(2),
+    tMult:fuzzyTrafficMult(traffic).toFixed(2),
+    rMult:(1+0.5*mf.high(rain)).toFixed(2),
+    distDisc:distDisc.toFixed(2),
+    uehDisc, peakFee:peakFee_, rainFee, svDisc
+  };
+}
+
+// ===================== MAIN CALCULATE =====================
+async function calcFare(){
+  const sa=document.getElementById('si').value.trim(), ea=document.getElementById('ei').value.trim();
+  showLoad('Geocoding địa chỉ...');
+  try{
+    if(sa&&!S.sc){ const c=await geocode(sa); if(!c){err('Không tìm thấy điểm đón!');hideLoad();return;} S.sc=c;placeMk('s',c); }
+    if(ea&&!S.ec){ const c=await geocode(ea); if(!c){err('Không tìm thấy điểm đến!');hideLoad();return;} S.ec=c;placeMk('e',c); }
+    if(!S.sc||!S.ec){ err('Vui lòng chọn điểm đón và điểm đến!');hideLoad();return; }
+
+    // Haversine distance for display
+    const hDist = haversine(...S.sc,...S.ec);
+
+    setLoadTxt('Lấy lộ trình OSRM...');
+    const route = await getRoute(...S.sc,...S.ec);
+    if(!route){ err('Không tìm được lộ trình!');hideLoad();return; }
+    S.dist=route.dist; S.time=route.time;
+
+    setLoadTxt('Tính giá thông minh...');
+    const f = computeFare(route.dist,route.time,S.vehicle,S.rain,S.traffic,S.ueh,S.student);
+
+    setLoadTxt('Vẽ bản đồ...');
+    drawRoute(route.geom,S.vehicle);
+    drawHeatmap(S.sc,S.ec);
+    map.fitBounds(L.latLngBounds(route.geom),{padding:[40,40]});
+
+    renderResults(f,route,hDist);
+    setInfo(`${route.dist.toFixed(1)} km (OSRM) / ${hDist.toFixed(1)} km (Haversine)  •  ${Math.round(route.time)} phút  •  ${f.fare.toLocaleString('vi')}₫`);
+    hideLoad();
+  }catch(e){ err('Lỗi kết nối! Kiểm tra mạng.'); hideLoad(); }
+}
+
+// ===================== MAP DRAWING =====================
+function drawRoute(coords,v){
+  if(routeL) map.removeLayer(routeL);
+  if(routeG) map.removeLayer(routeG);
+  const col=v==='bike'?'#ff2d78':'#c084fc';
+  routeG=L.polyline(coords,{color:col,weight:14,opacity:.12}).addTo(map);
+  routeL=L.polyline(coords,{color:col,weight:5,opacity:.9,lineCap:'round',lineJoin:'round'}).addTo(map);
+}
+
+// Folium-style heatmap simulation using circle markers
+function drawHeatmap(start,end){
+  if(heatGrp) map.removeLayer(heatGrp);
+  heatGrp=L.layerGroup();
+  const [mlat,mlng]=[(start[0]+end[0])/2,(start[1]+end[1])/2];
+  const cols=['#3b82f6','#10b981','#f59e0b','#ef4444'];
+  for(let i=0;i<120;i++){
+    const lat=mlat+(Math.random()-.5)*.06, lng=mlng+(Math.random()-.5)*.06;
+    const intens=Math.random(), idx=Math.floor(intens*(cols.length-1));
+    L.circleMarker([lat,lng],{radius:9,fillColor:cols[idx],fillOpacity:.12*S.traffic/5,stroke:false}).addTo(heatGrp);
+  }
+  heatGrp.addTo(map);
+}
+
+// ===================== RENDER RESULTS =====================
+function renderResults(f,route,hDist){
+  $('result').classList.add('show');
+  $('fare-amt').textContent=f.fare.toLocaleString('vi');
+  $('st-d').textContent=route.dist.toFixed(2);
+  $('st-t').textContent=Math.round(route.time);
+  $('st-hav').textContent=hDist.toFixed(2);
+  $('st-ratio').textContent=(route.dist/hDist).toFixed(2);
+
+  const totalSaved = f.uehDisc+f.svDisc;
+  if(totalSaved>0){
+    $('fare-orig').style.display='block'; $('fare-orig').textContent=f.fareB.toLocaleString('vi')+'₫';
+    $('save-badge').style.display='inline-flex'; $('save-badge').textContent=`Tiết kiệm ${totalSaved.toLocaleString('vi')}₫`;
+  }else{
+    $('fare-orig').style.display='none'; $('save-badge').style.display='none';
+  }
+
+  // Surge badges
+  const s=parseFloat(f.surge);
+  let badges=[];
+  badges.push(s<1.15?`<span class="sb ok">Giá bình thường</span>`:s<1.35?`<span class="sb warn">Surge ×${f.surge}</span>`:`<span class="sb hot">Surge cao ×${f.surge}</span>`);
+  if(f.uehDisc>0)  badges.push(`<span class="sb ok">UEH -15%</span>`);
+  if(f.peakFee>0)  badges.push(`<span class="sb warn">Cao điểm +${f.peakFee.toLocaleString('vi')}₫</span>`);
+  if(f.svDisc>0)   badges.push(`<span class="sb ok">SV -10%</span>`);
+  $('surge-row').innerHTML=badges.join('');
+
+  // Breakdown table
+  let rows=`
+    <div class="br"><span class="bl">Phí cơ bản</span><span class="bv">${f.base.toLocaleString('vi')}₫</span></div>
+    <div class="br"><span class="bl">Phí quãng đường (${route.dist.toFixed(1)} km)</span><span class="bv">${f.distCost.toLocaleString('vi')}₫</span></div>
+    <div class="br"><span class="bl">Phí thời gian (${Math.round(route.time)} phút)</span><span class="bv">${f.timeCost.toLocaleString('vi')}₫</span></div>
+    <div class="br"><span class="bl">Fuzzy Surge (×${f.surge})</span><span class="bv" style="color:var(--amber)">cộng dồn</span></div>
+    <div class="br"><span class="bl">Ưu đãi quãng dài (×${f.distDisc})</span><span class="bv" style="color:var(--green)">giảm</span></div>`;
+  if(f.uehDisc>0)  rows+=`<div class="br dis"><span class="bl">Ưu đãi UEH campus (-15%)</span><span class="bv">-${f.uehDisc.toLocaleString('vi')}₫</span></div>`;
+  if(f.peakFee>0)  rows+=`<div class="br"><span class="bl">Giờ cao điểm</span><span class="bv" style="color:var(--amber)">+${f.peakFee.toLocaleString('vi')}₫</span></div>`;
+  if(f.rainFee>0)  rows+=`<div class="br"><span class="bl">Phụ phí mưa (Fuzzy)</span><span class="bv">+${f.rainFee.toLocaleString('vi')}₫</span></div>`;
+  if(f.svDisc>0)   rows+=`<div class="br dis"><span class="bl">Giảm SV UEH (-10%)</span><span class="bv">-${f.svDisc.toLocaleString('vi')}₫</span></div>`;
+  rows+=`<div class="br tot"><span class="bl">TỔNG CƯỚC</span><span class="bv">${f.fare.toLocaleString('vi')}₫</span></div>`;
+  $('breakdown').innerHTML=rows;
+
+  // Algo tab
+  $('algo-detail').innerHTML=`
+    🚗 ${S.vehicle==='bike'?'Xe Máy':'Xe Hơi'}  &nbsp;|&nbsp; UEH: ${S.ueh?'Có':'Không'}  &nbsp;|&nbsp; SV: ${S.student?'Có':'Không'}<br>
+    📐 Haversine: <b>${hDist.toFixed(2)} km</b> vs OSRM: <b>${route.dist.toFixed(2)} km</b><br>
+    ⏰ Cao điểm: ${isPeak()?'CÓ (+'+f.peakFee.toLocaleString('vi')+'₫)':'Không'}
+  `;
+  const bars=[
+    {label:'Kẹt xe',val:parseFloat(f.tMult),col:'var(--amber)',max:1.5},
+    {label:'Mưa',val:parseFloat(f.rMult),col:'var(--blue)',max:1.5},
+    {label:'Dist disc',val:parseFloat(f.distDisc),col:'var(--green)',max:1.0}
+  ];
+  $('mbars').innerHTML=bars.map(b=>{
+    const p=Math.min(100,(b.val/b.max)*100);
+    return`<div class="mbar-row">
+      <span class="mbar-label">${b.label}</span>
+      <div class="mbar-track"><div class="mbar-fill" style="width:${p}%;background:${b.col}"></div></div>
+      <span class="mbar-val" style="color:${b.col}">×${b.val}</span>
+    </div>`;
+  }).join('');
+}
+
+// ===================== UI HELPERS =====================
+const $=id=>document.getElementById(id);
+
+function updSlider(el,t){
+  const v=parseInt(el.value);
+  if(t==='r'){S.rain=v;$('rv').textContent=v;}
+  else{S.traffic=v;$('tv').textContent=v;}
+  el.style.setProperty('--pct',(v/10*100)+'%');
+  const msgs=[];
+  if(S.rain>=7)msgs.push('Mưa lớn'); else if(S.rain>=4)msgs.push('Mưa vừa');
+  if(S.traffic>=7)msgs.push('Kẹt xe nặng'); else if(S.traffic>=4)msgs.push('Có kẹt xe');
+  $('cond-sum').textContent=msgs.length?msgs.join(' • '):'Điều kiện bình thường';
+}
+
+function updVoucher(){
+  S.ueh=$('ueh-tog').checked; S.student=$('sv-tog').checked;
+  $('campus-row').style.display=S.ueh?'block':'none';
+  $('b-ueh').className='dbadge '+(S.ueh?'on':'off');
+  $('b-ueh').textContent=S.ueh?`UEH ${S.campus||''} -15%`:'UEH -15%';
+  $('b-sv').className='dbadge '+(S.student?'on':'off');
+  if(!S.ueh){S.campus='';$('campus-sel').value='';}
+}
+
+function setCampus(){
+  const sel=$('campus-sel'), key=sel.value;
+  if(!key) return;
+  S.campus=key;
+  const c=CAMPS[key];
+  S.sc=[c.lat,c.lng]; placeMk('s',[c.lat,c.lng]);
+  $('si').value=`${c.name} — ${c.addr}`;
+  map.setView([c.lat,c.lng],14);
+  $('b-ueh').textContent=`UEH-${key} -15%`;
+  setInfo(`Xuất phát từ ${c.name}  •  Click điểm đến trên bản đồ`);
+  S.clickMode='end';
+}
+
+function selV(v){
+  S.vehicle=v;
+  $('card-bike').classList.toggle('active',v==='bike');
+  $('card-car').classList.toggle('active',v==='car');
+}
+
+function swapLoc(){
+  [$('si').value,$('ei').value]=[$('ei').value,$('si').value];
+  [S.sc,S.ec]=[S.ec,S.sc];
+  ['s','e'].forEach((t,i)=>{
+    if(mk[t]) map.removeLayer(mk[t]);
+    const coord=i===0?S.sc:S.ec;
+    if(coord) mk[t]=L.marker(coord,{icon:i===0?iS:iE}).addTo(map);
+  });
+}
+
+const PRESETS={
+  hcm1:{s:'Nhà thờ Đức Bà, Q1, HCM',e:'Landmark 81, Bình Thạnh, HCM',sc:[10.77978,106.69902],ec:[10.79482,106.72195]},
+  uehA:{s:'UEH Cơ sở A, 59C Nguyễn Đình Chiểu, Q3',e:'Bến xe Miền Đông, Bình Thạnh',sc:[10.78318,106.68944],ec:[10.81408,106.71305]},
+  uehB:{s:'UEH Cơ sở B, 279 Nguyễn Tri Phương, Q10',e:'Đại học Tôn Đức Thắng, Q7',sc:[10.77005,106.66887],ec:[10.73023,106.69940]},
+  dn1:{s:'Bãi biển Mỹ Khê, Đà Nẵng',e:'Sơn Trà, Đà Nẵng',sc:[16.05472,108.24695],ec:[16.10151,108.27683]}
+};
+
+function setPreset(id){
+  const p=PRESETS[id]; if(!p) return;
+  $('si').value=p.s; $('ei').value=p.e;
+  S.sc=p.sc; S.ec=p.ec;
+  placeMk('s',p.sc); placeMk('e',p.ec);
+  map.fitBounds(L.latLngBounds([p.sc,p.ec]),{padding:[80,80]});
+  setInfo(`Preset đã chọn (${haversine(...p.sc,...p.ec).toFixed(1)} km đường chim bay)  •  Nhấn "Tính Giá"`);
+}
+
+function showTab(tab){
+  ['fare','route','algo'].forEach(t=>$(`tab-${t}`).style.display=t===tab?'block':'none');
+  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',['fare','route','algo'][i]===tab));
+}
+
+function showLoad(t){$('loading').classList.remove('hidden');setLoadTxt(t);}
+function hideLoad(){$('loading').classList.add('hidden');}
+function setLoadTxt(t){$('load-txt').textContent=t;}
+function setInfo(t){$('map-info').textContent=t;}
+function err(msg){
+  const t=$('toast'); t.textContent='⚠ '+msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3500);
+}
+function showToast(msg){
+  const t=$('toast'); t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+// ===================== CLOCK =====================
+function updClock(){
+  const now=new Date(), hh=String(now.getHours()).padStart(2,'0'), mm=String(now.getMinutes()).padStart(2,'0');
+  $('clock').textContent=`${hh}:${mm}`;
+  const peak=isPeak();
+  $('tdot').className='tdot'+(peak?' peak':'');
+  $('peak-banner').style.display=peak?'flex':'none';
+  $('b-peak').className='dbadge '+(peak?'on':'off');
+  $('b-peak').textContent=peak?`Cao điểm +${peakFee().toLocaleString('vi')}₫`:'Giờ cao điểm';
+}
+setInterval(updClock,1000); updClock();
+
+// ===================== INIT =====================
+$('si').oninput=()=>S.sc=null;
+$('ei').oninput=()=>S.ec=null;
+['rsl','tsl'].forEach(id=>{ const el=$(id); el.style.setProperty('--pct',(parseInt(el.value)/10*100)+'%'); });
+setTimeout(()=>setPreset('hcm1'),300);
+</script>
+</body>
+</html>
+
+
